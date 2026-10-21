@@ -1,0 +1,62 @@
+name: Instalar projeto a partir do ZIP
+
+on:
+  push:
+    paths:
+      - "achados_feed_v2_3_render_pronto.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  instalar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Extrair projeto com validação de caminhos
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          archive = Path("achados_feed_v2_3_render_pronto.zip")
+          if not archive.exists():
+              raise SystemExit("ZIP não encontrado. Faça upload de achados_feed_v2_3_render_pronto.zip na raiz do repositório.")
+          root = Path.cwd().resolve()
+          allowed_roots = {"src", "server", "public"}
+          allowed_files = {"README.md", ".gitignore", ".env.example", "index.html", "package.json", "tsconfig.json", "vite.config.js", "render.yaml"}
+          with ZipFile(archive) as z:
+              for item in z.infolist():
+                  if item.is_dir():
+                      continue
+                  relative = Path(item.filename)
+                  if relative.is_absolute() or ".." in relative.parts:
+                      raise SystemExit(f"Caminho ZIP inválido: {item.filename}")
+                  if relative.parts[0] not in allowed_roots and str(relative) not in allowed_files:
+                      raise SystemExit(f"Arquivo ZIP inesperado: {item.filename}")
+                  dest = (root / relative).resolve()
+                  if not dest.is_relative_to(root):
+                      raise SystemExit("Arquivo fora do repositório")
+                  dest.parent.mkdir(parents=True, exist_ok=True)
+                  dest.write_bytes(z.read(item))
+          for needed in ("package.json", "server/index.js", "src/App.tsx", "render.yaml"):
+              if not Path(needed).exists():
+                  raise SystemExit(f"Arquivo obrigatório ausente: {needed}")
+          archive.unlink()
+          PY
+
+      - name: Commitar arquivos extraídos
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "build: importar Achados Feed 2.3 e imagens reais"
+            git push
+          fi
