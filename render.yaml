@@ -1,0 +1,28 @@
+# Ambiente de TESTE sem mensalidade fixa — NÃO recomendado para tráfego pago contínuo.
+# Render Free Web Services hibernam depois de 15 minutos ociosos.
+# Render Free PostgreSQL expira após 30 dias: para produção, escolha planos pagos
+# e backups antes de iniciar as campanhas.
+services:
+  - type: web
+    name: achados-feed
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: achados-feed-db
+          property: connectionString
+databases:
+  - name: achados-feed-db
+    plan: free
